@@ -65,7 +65,7 @@ async fn main() -> std::io::Result<()> {
     let api_service = LambdoApiService::new_with_state(
         lambdo_state,
         Box::new(FolderImageManager::new(
-            "/home/simon/dev/faast/images".to_string(),
+            config.api.image_manager.images_folder,
         )),
     )
     .await
@@ -76,8 +76,8 @@ async fn main() -> std::io::Result<()> {
 
     info!("everything is set up, starting servers");
 
-    let http_host = &config.api.web_host;
-    let http_port = config.api.web_port;
+    let http_host = &config.api.network.web_host;
+    let http_port = config.api.network.web_port;
     let app_state = web::Data::new(api_service);
     info!("Starting web server on {}:{}", http_host, http_port);
     HttpServer::new(move || {

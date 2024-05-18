@@ -12,7 +12,7 @@ use crate::vm_manager::state::VMState;
 use crate::vm_manager::state::VMStatus;
 
 pub(super) fn add_interface_to_bridge(interface_name: &String, state: &LambdoState) -> Result<()> {
-    let bridge_name = &state.config.api.bridge;
+    let bridge_name = &state.config.api.network.bridge;
     debug!(
         "adding interface {} to bridge {}",
         interface_name, bridge_name
@@ -57,7 +57,7 @@ pub(super) async fn create_tap_device(id: &str) -> Result<String> {
 pub(super) async fn find_available_ip(state: &LambdoState) -> Result<Ipv4Inet> {
     let config = &state.config;
     // Safe since we checked the validity of the address before
-    let host_ip = Ipv4Inet::from_str(&config.api.bridge_address).unwrap();
+    let host_ip = Ipv4Inet::from_str(&config.api.network.bridge_address).unwrap();
 
     let used_ip: &Vec<_> = &state
         .vms
@@ -108,6 +108,7 @@ pub(super) fn add_boot_option(vm: &mut VMState, state: &LambdoState) -> Result<(
     let gateway = state
         .config
         .api
+        .network
         .bridge_address
         .split('/')
         .next()

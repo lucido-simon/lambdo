@@ -267,13 +267,15 @@ pub async fn cleanup_network(state: &mut LambdoState, vm: &mut VMState) -> Resul
 
     debug!(
         "Removing interface {} from bridge {}",
-        tap_name, state.config.api.bridge
+        tap_name, state.config.api.network.bridge
     );
 
-    net::remove_interface_from_bridge(&tap_name, &state.config.api.bridge).map_err(|e| {
-        error!("Error while removing tap device: {:?}", e);
-        Error::NetSetupError(e)
-    })?;
+    net::remove_interface_from_bridge(&tap_name, &state.config.api.network.bridge).map_err(
+        |e| {
+            error!("Error while removing tap device: {:?}", e);
+            Error::NetSetupError(e)
+        },
+    )?;
 
     debug!("Removing tap device {}", tap_name);
 

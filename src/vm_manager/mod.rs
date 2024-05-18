@@ -197,8 +197,8 @@ impl Drop for VMManager {
 
 async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()> {
     let config = &state.config;
-    let bridge_name = &config.api.bridge;
-    let bridge_address = &config.api.bridge_address;
+    let bridge_name = &config.api.network.bridge;
+    let bridge_address = &config.api.network.bridge_address;
     trace!("validating bridge address");
     let bridge_address = cidr::Ipv4Inet::from_str(bridge_address)
         .map_err(|e| anyhow!("invalid bridge address: {}", e))?;

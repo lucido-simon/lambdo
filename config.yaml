@@ -1,40 +1,17 @@
 apiVersion: lambdo.io/v1alpha1
 kind: Config
 api:
-  # The host on which the API server will listen
-  web_host: 0.0.0.0
-  # The port on which the API server will listen
-  web_port: 3000
-  # The host on which the gRPC server will listen
-  grpc_host: 0.0.0.0
-  # The port on which the gRPC server will listen
-  gprc_port: 50051
-  # Bridge name
-  bridge: lambdo0
-  # The IP address of the bridge
-  ip: 10.0.50.0/8
-vmm:
-  # The kernel path to use for the vmm
-  kernel: /var/lib/lambdo/kernel/vmlinux.bin
-agent: # NOT IMPLEMENTED
-  # The path to the agent binary
-  path: /usr/local/bin/lambdo-agent
-  # The path to the agent configuration file
-  config: /etc/lambdo/agent.yaml
-languages:
-  # The name of the language runtime
-  - name: NODE
-    # The version of the node runtime
-    version: 12
-    # The initramfs to use for the runtime
-    initramfs: /var/lib/lambdo/initramfs/node-12.img
-    # The steps to run the code
-    steps:
-      - name: Run the code
-        command: /usr/local/bin/node {{filename}}
-        # The output configuration
-        output:
-          # Whether to enable the output
-          enabled: true
-          # Whether to enable debug output (useful for build steps)
-          debug: false
+  network:
+    # The host on which the API server will listen
+    webHost: 0.0.0.0
+    # The port on which the API server will listen
+    webPort: 3000
+    # Bridge name
+    bridge: lambdo0
+    # The IP address of the bridge
+    ip: 10.0.50.0/8
+
+  imageManager:
+    # Folder path for the images
+    imagesFolder: /var/lib/lambdo/images
+

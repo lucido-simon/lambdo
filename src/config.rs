@@ -19,10 +19,10 @@ pub enum LambdoConfigError {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-#[allow(non_snake_case)]
+#[serde(rename_all = "camelCase")]
 pub struct LambdoConfig {
     /// The api version of the lambdo config file
-    pub apiVersion: String,
+    pub api_version: String,
     /// The kind of the lambdo config file
     pub kind: String,
     /// The lambdo api configuration
@@ -30,7 +30,25 @@ pub struct LambdoConfig {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LambdoApiConfig {
+    /// Network configuration
+    pub network: NetworkConfig,
+    /// Image manager configuration
+    pub image_manager: ImageManagerConfig,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageManagerConfig {
+    /// Folder path for the images
+    #[serde(default = "default_images_folder")]
+    pub images_folder: String,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkConfig {
     /// Bridge to bind to
     #[serde(default = "default_bridge")]
     pub bridge: String,
@@ -49,6 +67,10 @@ fn default_bridge() -> String {
 
 fn default_bridge_address() -> String {
     String::from("192.168.10.1/24")
+}
+
+fn default_images_folder() -> String {
+    String::from("/var/lib/lambdo/images")
 }
 
 impl LambdoConfig {
@@ -71,7 +93,7 @@ impl LambdoConfig {
             return Err(LambdoConfigError::KindNotSupported.into());
         }
 
-        if config.apiVersion != "lambdo.io/v1alpha1" {
+        if config.api_version != "lambdo.io/v1alpha1" {
             return Err(LambdoConfigError::VersionNotSupported.into());
         }
 
