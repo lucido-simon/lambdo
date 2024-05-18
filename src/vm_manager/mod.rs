@@ -189,16 +189,16 @@ async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()> {
         "setting up bridge {} with address {}",
         bridge_name, bridge_address
     );
-    let bridge = network_bridge::interface_id(bridge_name)
+    let (bridge, interface_exists) = network_bridge::interface_id(bridge_name)
         .map_or_else(
             |e| {
                 trace!("error when fetching bridge id: {}", e);
                 debug!("bridge {} does not exist, creating it", bridge_name);
-                network_bridge::create_bridge(bridge_name)
+                network_bridge::create_bridge(bridge_name).map(|id| (id, false))
             },
             |id| {
                 debug!("bridge {} already exists, using it", bridge_name);
-                Ok(id)
+                Ok((id, true))
             },
         )
         .map_err(|e| {
@@ -216,10 +216,12 @@ async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()> {
         .collect::<Vec<_>>();
 
     trace!("existing addresses: {:?}", addresses);
-    if addresses.iter().any(|addr| {
+    let address_exists = addresses.iter().any(|addr| {
         addr.ip() == bridge_address.address()
             && addr.netmask() == Some(IpAddr::V4(bridge_address.mask()))
-    }) {
+    });
+
+    if address_exists {
         debug!("bridge address already exists, skipping");
     } else {
         debug!("bridge address does not exist, creating it");
@@ -247,35 +249,40 @@ async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()> {
     }
 
     debug!("setting up bridge firewall");
-    let default_interface_name = default_net::interface::get_default_interface_name()
-        .ok_or(anyhow!("no default interface found"))?;
 
-    let iptables = iptables::new(false)
-        .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+    if !interface_exists || !address_exists {
+        let default_interface_name = default_net::interface::get_default_interface_name()
+            .ok_or(anyhow!("no default interface found"))?;
 
-    iptables
-        .append(
-            "filter",
-            "FORWARD",
-            format!("-i {} -o {} -j ACCEPT", default_interface_name, bridge_name).as_str(),
-        )
-        .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+        let iptables = iptables::new(false)
+            .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
 
-    iptables
-        .append(
-            "filter",
-            "FORWARD",
-            format!("-i {} -o {} -j ACCEPT", bridge_name, default_interface_name).as_str(),
-        )
-        .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+        iptables
+            .append(
+                "filter",
+                "FORWARD",
+                format!("-i {} -o {} -j ACCEPT", default_interface_name, bridge_name).as_str(),
+            )
+            .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
 
-    iptables
-        .append(
-            "nat",
-            "POSTROUTING",
-            format!("-o {} -j MASQUERADE", default_interface_name).as_str(),
-        )
-        .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+        iptables
+            .append(
+                "filter",
+                "FORWARD",
+                format!("-i {} -o {} -j ACCEPT", bridge_name, default_interface_name).as_str(),
+            )
+            .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+
+        iptables
+            .append(
+                "nat",
+                "POSTROUTING",
+                format!("-o {} -j MASQUERADE", default_interface_name).as_str(),
+            )
+            .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+    } else {
+        debug!("bridge firewall already set up, skipping");
+    }
 
     debug!("bringing up bridge");
 
