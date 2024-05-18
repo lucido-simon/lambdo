@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::process::Command;
 use std::str::FromStr;
 
@@ -148,24 +149,18 @@ pub(super) fn create_port_mapping(
             }
         }
 
-        let nat_table =
+        let ip_table =
             iptables::new(false).map_err(|e| anyhow!("error when creating nat table: {}", e))?;
 
         debug!("adding port mapping for {} to {}", host_port, guest_port);
 
-        nat_table
+        // PORT MAPPING
+        ip_table
             .append(
                 "nat",
                 "PREROUTING",
                 format!(
-                    "-i {} -p tcp -m tcp --dport {} -j DNAT --to-destination {}:{}",
-                    lambdo_state
-                        .config
-                        .api
-                        .bridge_address
-                        .split('/')
-                        .next()
-                        .unwrap_or_default(),
+                    "-p tcp --dport {} -j DNAT --to-destination {}:{}",
                     host_port,
                     vm_state.ip.ok_or(anyhow!("IP not set"))?.address(),
                     guest_port
@@ -173,7 +168,108 @@ pub(super) fn create_port_mapping(
                 .as_str(),
             )
             .map_err(|e| anyhow!("error when adding port mapping: {}", e))?;
+
+        //MASQUERADE
+        ip_table
+            .append(
+                "nat",
+                "POSTROUTING",
+                format!(
+                    "-p tcp -d {} --dport {} -j MASQUERADE",
+                    vm_state.ip.ok_or(anyhow!("IP not set"))?.address(),
+                    guest_port
+                )
+                .as_str(),
+            )
+            .map_err(|e| anyhow!("error when adding port mapping: {}", e))?;
+
+        //ACCEPT FORWARD
+        ip_table
+            .append(
+                "filter",
+                "FORWARD",
+                format!(
+                    "-p tcp -d {} --dport {} -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT",
+                    vm_state.ip.ok_or(anyhow!("IP not set"))?.address(),
+                    guest_port
+                )
+                .as_str(),
+            )
+            .map_err(|e| anyhow!("error when adding port mapping: {}", e))?;
     }
+
+    Ok(())
+}
+
+pub(super) fn remove_port_mapping(
+    port_mapping: &HashMap<u16, u16>,
+    vm_ip: &Ipv4Inet,
+) -> Result<()> {
+    debug!("removing port mapping");
+    trace!("port mapping: {:?}", port_mapping);
+    trace!("vm ip: {}", vm_ip);
+
+    let ip_table =
+        iptables::new(false).map_err(|e| anyhow!("error when creating nat table: {}", e))?;
+
+    let address = vm_ip.address();
+
+    for (host_port, guest_port) in port_mapping {
+        ip_table
+            .delete(
+                "nat",
+                "PREROUTING",
+                format!(
+                    "-p tcp --dport {} -j DNAT --to-destination {}:{}",
+                    host_port, address, guest_port
+                )
+                .as_str(),
+            )
+            .map_err(|e| anyhow!("error when removing port mapping: {}", e))?;
+
+        ip_table
+            .delete(
+                "nat",
+                "POSTROUTING",
+                format!("-p tcp -d {} --dport {} -j MASQUERADE", address, guest_port).as_str(),
+            )
+            .map_err(|e| anyhow!("error when removing port mapping: {}", e))?;
+
+        ip_table
+            .delete(
+                "filter",
+                "FORWARD",
+                format!(
+                    "-p tcp -d {} --dport {} -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT",
+                    address, guest_port
+                )
+                .as_str(),
+            )
+            .map_err(|e| anyhow!("error when removing port mapping: {}", e))?;
+    }
+
+    Ok(())
+}
+
+pub(super) fn remove_interface_from_bridge(
+    interface_name: &String,
+    bridge_name: &String,
+) -> Result<()> {
+    let interface_id = network_bridge::interface_id(interface_name)
+        .map_err(|e| anyhow!("error when fetching interface id: {}", e))?;
+
+    network_bridge::delete_interface_from_bridge(interface_id, bridge_name)
+        .map_err(|e| anyhow!("error when removing interface from bridge: {}", e))?;
+
+    Ok(())
+}
+
+pub(super) async fn remove_tap_device(tap_name: &String) -> Result<()> {
+    tokio::process::Command::new("ip")
+        .args(["link", "delete", tap_name])
+        .output()
+        .await
+        .map_err(|e| anyhow!("error when removing tap device: {}", e))?;
 
     Ok(())
 }

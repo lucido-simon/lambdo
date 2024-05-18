@@ -19,6 +19,8 @@ pub use crate::vm_manager::Error;
 #[async_trait::async_trait]
 pub trait LambdoApiServiceTrait: Send + Sync {
     async fn start(&self, request: VMOptionsDTO) -> Result<(String, HashMap<u16, u16>), Error>;
+    async fn stop(&self, id: &str) -> Result<(), Error>;
+
     async fn simple_spawn(
         &self,
         request: SimpleSpawn,
@@ -131,6 +133,10 @@ impl LambdoApiServiceTrait for LambdoApiService {
         response
     }
 
+    async fn stop(&self, id: &str) -> Result<(), Error> {
+        self.vm_manager.stop_vm(id).await.map(|_| ())
+    }
+
     async fn simple_spawn(
         &self,
         request: SimpleSpawn,
@@ -139,7 +145,7 @@ impl LambdoApiServiceTrait for LambdoApiService {
         let used_ports = self.vm_manager.get_used_ports().await;
 
         let port_mapping = request
-            .port_mapping
+            .requested_ports
             .iter()
             .map(|guest| {
                 for i in 10000_u16..20000 {

@@ -119,6 +119,7 @@ pub enum Error {
     VmmConfigure(machine::FirepilotError),
     VmmRun(machine::FirepilotError),
     ImageError(anyhow::Error),
+    Other(anyhow::Error),
     NetSetupError(anyhow::Error),
     NoIPAvailable,
     VmNotFound,
@@ -134,6 +135,7 @@ impl Display for Error {
             Error::VmmConfigure(e) => write!(f, "Error while configuring VMM: {:?}", e),
             Error::VmmRun(e) => write!(f, "Error while running VMM: {:?}", e),
             Error::ImageError(e) => write!(f, "Error with images: {:?}", e),
+            Error::Other(e) => write!(f, "Other error: {:?}", e),
             Error::NetSetupError(e) => write!(f, "Error while setting up network: {:?}", e),
             Error::NoIPAvailable => write!(f, "No IP address available"),
             Error::VmNotFound => write!(f, "VM not found"),
@@ -161,7 +163,9 @@ pub async fn start(state: &mut LambdoState, vm_options: VMOptions) -> Result<Str
         Error::NetSetupError(e)
     })?;
 
-    configuration.interfaces[0].host_dev_name = tap_name.clone();
+    configuration.interfaces[0]
+        .host_dev_name
+        .clone_from(&tap_name);
 
     let mut vm_state = VMState::new(configuration);
     vm_state.port_mapping = vm_options.network.port_mapping.into_iter().collect();
@@ -188,7 +192,9 @@ pub async fn start(state: &mut LambdoState, vm_options: VMOptions) -> Result<Str
     })?;
 
     configuration_cloned.interfaces[0] = vm_state.configuration.interfaces[0].clone();
-    configuration_cloned.kernel = vm_state.configuration.kernel.clone();
+    configuration_cloned
+        .kernel
+        .clone_from(&vm_state.configuration.kernel);
 
     let mut machine = Machine::new();
     machine.create(configuration_cloned).await.map_err(|e| {
@@ -204,4 +210,59 @@ pub async fn start(state: &mut LambdoState, vm_options: VMOptions) -> Result<Str
     state.vms.push(vm_state);
 
     Ok(id)
+}
+
+pub async fn stop(state: &mut LambdoState, id: &str) -> Result<(), Error> {
+    debug!("Stopping VM {}", id);
+
+    let vm_index = state
+        .vms
+        .iter()
+        .position(|vm| vm.configuration.vm_id == id)
+        .ok_or(Error::VmNotFound)?;
+
+    let mut vm = state.vms.remove(vm_index);
+
+    let machine = vm
+        .machine
+        .as_mut()
+        .ok_or(Error::Other(anyhow::anyhow!("VM is not running")))?;
+
+    machine.stop().await.map_err(|e| {
+        error!("Error while stopping VM: {:?}", e);
+        Error::Other(anyhow::anyhow!("Error while stopping VM: {:?}", e))
+    })?;
+
+    debug!("Cleaning up VM Network configuration for {} ", id);
+
+    let ip = vm
+        .ip
+        .as_ref()
+        .ok_or(Error::Other(anyhow::anyhow!("VM has no IP address")))?;
+
+    net::remove_port_mapping(&vm.port_mapping, ip).map_err(|e| {
+        error!("Error while removing port mapping: {:?}", e);
+        Error::NetSetupError(e)
+    })?;
+
+    let tap_name = vm.configuration.interfaces[0].host_dev_name.clone();
+
+    debug!(
+        "Removing interface {} from bridge {}",
+        tap_name, state.config.api.bridge
+    );
+
+    net::remove_interface_from_bridge(&tap_name, &state.config.api.bridge).map_err(|e| {
+        error!("Error while removing tap device: {:?}", e);
+        Error::NetSetupError(e)
+    })?;
+
+    debug!("Removing tap device {}", tap_name);
+
+    net::remove_tap_device(&tap_name).await.map_err(|e| {
+        error!("Error while removing tap device: {:?}", e);
+        Error::NetSetupError(e)
+    })?;
+
+    Ok(())
 }

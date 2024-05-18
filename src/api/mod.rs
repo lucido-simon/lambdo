@@ -1,12 +1,12 @@
 pub mod service;
 
-use actix_web::{post, web, Responder};
+use actix_web::{delete, http::StatusCode, post, web, HttpResponseBuilder, Responder};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info};
 
 use crate::{
     api::service::{LambdoApiService, LambdoApiServiceTrait},
-    vm_manager::{SimpleSpawn, VMOptionsDTO},
+    vm_manager::{Error, SimpleSpawn, VMOptionsDTO},
 };
 
 use std::{collections::HashMap, error::Error as STDError};
@@ -65,4 +65,22 @@ pub async fn simple_spawn_route(
     let response = result?;
 
     Ok(web::Json(StartResponse::from(response)))
+}
+
+#[delete("/destroy/{id}")]
+pub async fn stop_route(
+    id: web::Path<String>,
+    api_service: web::Data<LambdoApiService>,
+) -> Result<impl Responder, Box<dyn STDError>> {
+    debug!("Received HTTP VM Stop request for id: {}", id);
+
+    let service = api_service.get_ref();
+
+    match service.stop(&id.into_inner()).await {
+        Ok(_) => Ok(HttpResponseBuilder::new(StatusCode::NO_CONTENT)),
+        Err(e) => match e {
+            Error::VmNotFound => Ok(HttpResponseBuilder::new(StatusCode::NOT_FOUND)),
+            _ => Err(e.into()),
+        },
+    }
 }

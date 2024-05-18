@@ -11,7 +11,11 @@ use anyhow::anyhow;
 use std::{collections::HashMap, net::IpAddr, str::FromStr};
 use tracing::{debug, error, info, trace};
 
-use self::{image::Image, state::LambdoStateRef, vmm::start};
+use self::{
+    image::Image,
+    state::LambdoStateRef,
+    vmm::{start, stop},
+};
 
 pub mod image;
 mod vmm;
@@ -19,7 +23,8 @@ mod vmm;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SimpleSpawn {
     pub rootfs: String,
-    pub port_mapping: Vec<u16>,
+    #[serde(rename = "requestedPorts")]
+    pub requested_ports: Vec<u16>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -88,6 +93,7 @@ pub trait VMManagerTrait: Sync + Send {
         Self: Sized;
 
     async fn start_vm(&self, request: VMOptions) -> Result<String, Error>;
+    async fn stop_vm(&self, id: &str) -> Result<(), Error>;
     async fn get_used_ports(&self) -> Vec<u16>;
     async fn get_used_ports_of_vm(&self, vm_id: &str) -> Option<HashMap<u16, u16>>;
 }
@@ -134,6 +140,18 @@ impl VMManagerTrait for VMManager {
             .unwrap();
 
         Ok(vm.configuration.vm_id.clone())
+    }
+
+    async fn stop_vm(&self, id: &str) -> Result<(), Error> {
+        debug!("Stopping VM {}", id);
+        let mut state = self.state.lock().await;
+
+        stop(&mut state, id).await.map_err(|e| {
+            error!("Error while stopping VM: {:?}", e);
+            e
+        })?;
+
+        Ok(())
     }
 
     async fn get_used_ports(&self) -> Vec<u16> {
@@ -227,6 +245,37 @@ async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()> {
             .await
             .map_err(|e| anyhow!("error when adding bridge address: {}", e))?;
     }
+
+    debug!("setting up bridge firewall");
+    let default_interface_name = default_net::interface::get_default_interface_name()
+        .ok_or(anyhow!("no default interface found"))?;
+
+    let iptables = iptables::new(false)
+        .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+
+    iptables
+        .append(
+            "filter",
+            "FORWARD",
+            format!("-i {} -o {} -j ACCEPT", default_interface_name, bridge_name).as_str(),
+        )
+        .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+
+    iptables
+        .append(
+            "filter",
+            "FORWARD",
+            format!("-i {} -o {} -j ACCEPT", bridge_name, default_interface_name).as_str(),
+        )
+        .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
+
+    iptables
+        .append(
+            "nat",
+            "POSTROUTING",
+            format!("-o {} -j MASQUERADE", default_interface_name).as_str(),
+        )
+        .map_err(|e| anyhow!("error when setting up bridge firewall: {}", e))?;
 
     debug!("bringing up bridge");
 

@@ -10,7 +10,7 @@ use thiserror::Error;
 use tracing_subscriber::EnvFilter;
 
 use crate::{
-    api::{service::LambdoApiService, simple_spawn_route, start_route},
+    api::{service::LambdoApiService, simple_spawn_route, start_route, stop_route},
     vm_manager::{image::FolderImageManager, state::LambdoState},
 };
 use actix_web::{web, App, HttpServer};
@@ -65,7 +65,7 @@ async fn main() -> std::io::Result<()> {
     let api_service = LambdoApiService::new_with_state(
         lambdo_state,
         Box::new(FolderImageManager::new(
-            "/home/fedora/faast/lambdo/images".to_string(),
+            "/home/simon/dev/faast/images".to_string(),
         )),
     )
     .await
@@ -85,6 +85,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(app_state.clone())
             .service(start_route)
             .service(simple_spawn_route)
+            .service(stop_route)
     })
     .bind((http_host.clone(), http_port))?
     .run()
