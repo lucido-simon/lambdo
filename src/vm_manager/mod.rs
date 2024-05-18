@@ -171,6 +171,30 @@ impl VMManagerTrait for VMManager {
     }
 }
 
+impl Drop for VMManager {
+    fn drop(&mut self) {
+        info!("Dropping VMManager");
+
+        tokio::task::block_in_place(move || {
+            tokio::runtime::Handle::current().block_on(async move {
+                let mut state = self.state.lock().await;
+                let vm_ids: Vec<String> = state
+                    .vms
+                    .iter()
+                    .map(|vm| vm.configuration.vm_id.clone())
+                    .collect();
+
+                for vm_id in vm_ids {
+                    match stop(&mut state, &vm_id).await {
+                        Ok(()) => debug!("Stopped VM {}", vm_id),
+                        Err(e) => error!("Error while stopping VM: {:?}", e),
+                    }
+                }
+            });
+        });
+    }
+}
+
 async fn setup_bridge(state: &state::LambdoState) -> anyhow::Result<()> {
     let config = &state.config;
     let bridge_name = &config.api.bridge;

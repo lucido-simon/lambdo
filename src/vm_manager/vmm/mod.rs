@@ -223,17 +223,35 @@ pub async fn stop(state: &mut LambdoState, id: &str) -> Result<(), Error> {
 
     let mut vm = state.vms.remove(vm_index);
 
-    let machine = vm
+    let res = vm
         .machine
         .as_mut()
-        .ok_or(Error::Other(anyhow::anyhow!("VM is not running")))?;
+        .ok_or(Error::Other(anyhow::anyhow!("VM is not running")))?
+        .stop()
+        .await
+        .map_err(|e| {
+            error!("Error while stopping VM: {:?}", e);
+            Error::Other(anyhow::anyhow!("Error while stopping VM: {:?}", e))
+        });
 
-    machine.stop().await.map_err(|e| {
-        error!("Error while stopping VM: {:?}", e);
-        Error::Other(anyhow::anyhow!("Error while stopping VM: {:?}", e))
-    })?;
+    match cleanup_network(state, &mut vm).await {
+        Ok(()) => res,
+        Err(e) => {
+            error!("Error while cleaning up network: {:?}", e);
+            if res.is_err() {
+                res
+            } else {
+                Err(e)
+            }
+        }
+    }
+}
 
-    debug!("Cleaning up VM Network configuration for {} ", id);
+pub async fn cleanup_network(state: &mut LambdoState, vm: &mut VMState) -> Result<(), Error> {
+    debug!(
+        "Cleaning up VM Network configuration for {} ",
+        vm.configuration.vm_id
+    );
 
     let ip = vm
         .ip
