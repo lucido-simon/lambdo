@@ -10,8 +10,6 @@ use crate::{
     },
 };
 use mockall::automock;
-use tracing::debug;
-use uuid::Uuid;
 
 pub use crate::vm_manager::Error;
 
@@ -113,10 +111,9 @@ impl LambdoApiService {
 #[async_trait::async_trait]
 impl LambdoApiServiceTrait for LambdoApiService {
     async fn start(&self, request: VMOptionsDTO) -> Result<(String, HashMap<u16, u16>), Error> {
-        let id = Uuid::new_v4().to_string();
         let options = self.to_options(request).await?;
 
-        let response = match self
+        match self
             .vm_manager
             .start_vm(options)
             .await
@@ -126,11 +123,7 @@ impl LambdoApiServiceTrait for LambdoApiService {
             }) {
             Ok(response) => Ok(response.await),
             Err(e) => Err(e),
-        };
-
-        debug!("VM started with id: {}", id);
-
-        response
+        }
     }
 
     async fn stop(&self, id: &str) -> Result<(), Error> {
@@ -141,7 +134,6 @@ impl LambdoApiServiceTrait for LambdoApiService {
         &self,
         request: SimpleSpawn,
     ) -> Result<(String, HashMap<u16, u16>), Error> {
-        let id = Uuid::new_v4().to_string();
         let used_ports = self.vm_manager.get_used_ports().await;
 
         let port_mapping = request
@@ -171,7 +163,7 @@ impl LambdoApiServiceTrait for LambdoApiService {
             network: NetworkOptions { port_mapping },
         };
 
-        let response = match self
+        match self
             .vm_manager
             .start_vm(options)
             .await
@@ -181,10 +173,6 @@ impl LambdoApiServiceTrait for LambdoApiService {
             }) {
             Ok(response) => Ok(response.await),
             Err(e) => Err(e),
-        };
-
-        debug!("VM started with id: {}", id);
-
-        response
+        }
     }
 }

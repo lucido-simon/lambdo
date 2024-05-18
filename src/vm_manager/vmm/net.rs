@@ -39,15 +39,13 @@ pub(super) fn add_interface_to_bridge(interface_name: &String, state: &LambdoSta
     Ok(())
 }
 
-pub(super) async fn create_tap_device(id: &str, ip: &Ipv4Inet) -> Result<String> {
+pub(super) async fn create_tap_device(id: &str) -> Result<String> {
     let truncated_id = id[..8].to_string();
     let tap_name = format!("tap-{}", truncated_id);
     let tap = tokio_tun::TunBuilder::new()
         .name(&tap_name)
         .tap(true)
         .packet_info(false)
-        // .address(ip.address())
-        // .netmask(ip.mask())
         .persist()
         .up()
         .try_build();
@@ -251,10 +249,7 @@ pub(super) fn remove_port_mapping(
     Ok(())
 }
 
-pub(super) fn remove_interface_from_bridge(
-    interface_name: &String,
-    bridge_name: &String,
-) -> Result<()> {
+pub(super) fn remove_interface_from_bridge(interface_name: &str, bridge_name: &str) -> Result<()> {
     let interface_id = network_bridge::interface_id(interface_name)
         .map_err(|e| anyhow!("error when fetching interface id: {}", e))?;
 

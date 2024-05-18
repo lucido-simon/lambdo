@@ -158,7 +158,7 @@ pub async fn start(state: &mut LambdoState, vm_options: VMOptions) -> Result<Str
     })?;
 
     info!("Creating tap device");
-    let tap_name = net::create_tap_device(&id, &ip).await.map_err(|e| {
+    let tap_name = net::create_tap_device(&id).await.map_err(|e| {
         error!("Error while creating tap device: {:?}", e);
         Error::NetSetupError(e)
     })?;
