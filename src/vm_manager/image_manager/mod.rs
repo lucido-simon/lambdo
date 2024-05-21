@@ -4,6 +4,7 @@ use anyhow::Error;
 use serde::{Deserialize, Serialize};
 
 pub mod folder_manager;
+pub mod url_manager;
 
 #[async_trait::async_trait]
 pub trait ImageManager: Sync + Send {

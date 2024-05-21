@@ -14,4 +14,5 @@ api:
   imageManager:
     # Folder path for the images
     imagesFolder: /var/lib/lambdo/images
-
+    # Image manager strategy, can be "folder" or "url"
+    strategy: url

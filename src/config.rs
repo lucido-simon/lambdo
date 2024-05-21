@@ -19,6 +19,14 @@ pub enum LambdoConfigError {
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub enum ImageManagerStrategy {
+    #[serde(rename = "folder")]
+    Folder,
+    #[serde(rename = "url")]
+    Url,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct LambdoConfig {
     /// The api version of the lambdo config file
@@ -44,6 +52,9 @@ pub struct ImageManagerConfig {
     /// Folder path for the images
     #[serde(default = "default_images_folder")]
     pub images_folder: String,
+    /// Image manager strategy
+    #[serde(default = "default_image_manager_strategy")]
+    pub strategy: ImageManagerStrategy,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
@@ -71,6 +82,10 @@ fn default_bridge_address() -> String {
 
 fn default_images_folder() -> String {
     String::from("/var/lib/lambdo/images")
+}
+
+fn default_image_manager_strategy() -> ImageManagerStrategy {
+    ImageManagerStrategy::Folder
 }
 
 impl LambdoConfig {

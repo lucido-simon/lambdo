@@ -5,13 +5,18 @@ pub mod vm_manager;
 
 use std::sync::Arc;
 
-use config::LambdoConfig;
+use config::{ImageManagerStrategy, LambdoConfig};
 use thiserror::Error;
 use tracing_subscriber::EnvFilter;
 
 use crate::{
     api::{service::LambdoApiService, simple_spawn_route, start_route, stop_route},
-    vm_manager::{image_manager::folder_manager::FolderImageManager, state::LambdoState},
+    vm_manager::{
+        image_manager::{
+            folder_manager::FolderImageManager, url_manager::UrlImageManager, ImageManager,
+        },
+        state::LambdoState,
+    },
 };
 use actix_web::{web, App, HttpServer};
 use clap::Parser;
@@ -60,19 +65,21 @@ async fn main() -> std::io::Result<()> {
     info!("setting up");
     let lambdo_state = Arc::new(Mutex::new(LambdoState::new(config.clone())));
 
-    //
-
-    let api_service = LambdoApiService::new_with_state(
-        lambdo_state,
-        Box::new(FolderImageManager::new(
+    let image_manager: Box<dyn ImageManager> = match config.api.image_manager.strategy {
+        ImageManagerStrategy::Folder => Box::new(FolderImageManager::new(
             config.api.image_manager.images_folder,
         )),
-    )
-    .await
-    .map_err(|e| {
-        error!("failed to set up API service: {}", e);
-    })
-    .unwrap();
+        ImageManagerStrategy::Url => {
+            Box::new(UrlImageManager::new(config.api.image_manager.images_folder))
+        }
+    };
+
+    let api_service = LambdoApiService::new_with_state(lambdo_state, image_manager)
+        .await
+        .map_err(|e| {
+            error!("failed to set up API service: {}", e);
+        })
+        .unwrap();
 
     info!("everything is set up, starting servers");
 
