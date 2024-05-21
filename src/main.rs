@@ -11,7 +11,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{
     api::{service::LambdoApiService, simple_spawn_route, start_route, stop_route},
-    vm_manager::{image::FolderImageManager, state::LambdoState},
+    vm_manager::{image_manager::folder_manager::FolderImageManager, state::LambdoState},
 };
 use actix_web::{web, App, HttpServer};
 use clap::Parser;

@@ -12,12 +12,12 @@ use std::{collections::HashMap, net::IpAddr, str::FromStr};
 use tracing::{debug, error, info, trace};
 
 use self::{
-    image::Image,
+    image_manager::Image,
     state::LambdoStateRef,
     vmm::{start, stop},
 };
 
-pub mod image;
+pub mod image_manager;
 mod vmm;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

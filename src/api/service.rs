@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     config::LambdoConfig,
     vm_manager::{
-        image::{Image, ImageManager},
+        image_manager::{Image, ImageManager},
         state::LambdoStateRef,
         BootOptions, DiskOptions, NetworkOptions, SimpleSpawn, VMManager, VMManagerTrait,
         VMOptions, VMOptionsDTO,
