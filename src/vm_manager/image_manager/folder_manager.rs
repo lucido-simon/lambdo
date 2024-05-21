@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::Error;
 use tracing::trace;
 
-use super::{Image, ImageManager};
+use super::{Image, ImageManager, ImageManifest};
 
 pub struct FolderImageManager {
     pub path: PathBuf,
@@ -17,17 +17,20 @@ impl FolderImageManager {
 
 #[async_trait::async_trait]
 impl ImageManager for FolderImageManager {
-    async fn find_disk(&self, id: &str) -> Result<Image, Error> {
-        trace!("find_disk {}", id);
+    async fn find_disk(&self, manifest: &ImageManifest) -> Result<Image, Error> {
+        trace!("find_disk {}, {}", manifest.id, manifest.location);
 
-        let path = self.path.join(id);
+        let path = self.path.join(manifest.location.clone());
         if !path.exists() {
-            return Err(anyhow::anyhow!("Image {} not found", id));
+            return Err(anyhow::anyhow!(
+                "Image {} ({}) not found",
+                manifest.id,
+                path.display()
+            ));
         }
 
         let image = Image {
-            id: id.to_string(),
-            name: id.to_string(),
+            id: manifest.id.to_string(),
             path,
         };
 
@@ -35,11 +38,11 @@ impl ImageManager for FolderImageManager {
         Ok(image)
     }
 
-    async fn find_kernel(&self, id: &str) -> Result<Image, Error> {
-        self.find_disk(id).await
+    async fn find_kernel(&self, manifest: &ImageManifest) -> Result<Image, Error> {
+        self.find_disk(manifest).await
     }
 
-    async fn find_rootfs(&self, id: &str) -> Result<Image, Error> {
-        self.find_disk(id).await
+    async fn find_rootfs(&self, manifest: &ImageManifest) -> Result<Image, Error> {
+        self.find_disk(manifest).await
     }
 }

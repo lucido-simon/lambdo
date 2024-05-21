@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     config::LambdoConfig,
     vm_manager::{
-        image_manager::{Image, ImageManager},
+        image_manager::{Image, ImageManager, ImageManifest},
         state::LambdoStateRef,
         BootOptions, DiskOptions, NetworkOptions, SimpleSpawn, VMManager, VMManagerTrait,
         VMOptions, VMOptionsDTO,
@@ -47,8 +47,8 @@ impl LambdoApiService {
     }
 
     pub async fn to_options(&self, request: VMOptionsDTO) -> Result<VMOptions, Error> {
-        let kernel = self.find_kernel(&request.boot.kernel_image_path).await?;
-        let rootfs = if let Some(path) = request.boot.initrd_path {
+        let kernel = self.find_kernel(&request.boot.kernel).await?;
+        let rootfs = if let Some(path) = request.boot.initrd {
             Some(self.find_rootfs(&path).await?)
         } else {
             None
@@ -56,7 +56,7 @@ impl LambdoApiService {
 
         let disks = request.disks.iter().map(|disk| async {
             self.image_manager
-                .find_disk(&disk.id)
+                .find_disk(&disk.image)
                 .await
                 .map(|image| DiskOptions {
                     image,
@@ -93,14 +93,14 @@ impl LambdoApiService {
         })
     }
 
-    async fn find_kernel(&self, kernel: &str) -> Result<Image, Error> {
+    async fn find_kernel(&self, kernel: &ImageManifest) -> Result<Image, Error> {
         self.image_manager
             .find_kernel(kernel)
             .await
             .map_err(Error::ImageError)
     }
 
-    async fn find_rootfs(&self, rootfs: &str) -> Result<Image, Error> {
+    async fn find_rootfs(&self, rootfs: &ImageManifest) -> Result<Image, Error> {
         self.image_manager
             .find_rootfs(rootfs)
             .await
@@ -151,7 +151,12 @@ impl LambdoApiServiceTrait for LambdoApiService {
 
         let options = VMOptions {
             boot: BootOptions {
-                kernel: self.find_kernel("vmlinux").await?,
+                kernel: self
+                    .find_kernel(&ImageManifest {
+                        id: "vmlinux".to_string(),
+                        location: "vmlinux".to_string(),
+                    })
+                    .await?,
                 initrd: None,
                 boot_args: None,
             },

@@ -12,7 +12,7 @@ use std::{collections::HashMap, net::IpAddr, str::FromStr};
 use tracing::{debug, error, info, trace};
 
 use self::{
-    image_manager::Image,
+    image_manager::{Image, ImageManifest},
     state::LambdoStateRef,
     vmm::{start, stop},
 };
@@ -22,7 +22,7 @@ mod vmm;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SimpleSpawn {
-    pub rootfs: String,
+    pub rootfs: ImageManifest,
     #[serde(rename = "requestedPorts")]
     pub requested_ports: Vec<u16>,
 }
@@ -34,9 +34,9 @@ pub struct BootOptionsDTO {
     pub boot_args: Option<String>,
     /// Host level path to the initrd image used to boot the guest
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub initrd_path: Option<String>,
+    pub initrd: Option<ImageManifest>,
     /// Host level path to the kernel image used to boot the guest
-    pub kernel_image_path: String,
+    pub kernel: ImageManifest,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -53,7 +53,7 @@ pub struct BootOptions {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DiskOptionsDTO {
-    pub id: String,
+    pub image: ImageManifest,
     pub is_readonly: bool,
     pub is_root_device: bool,
 }
