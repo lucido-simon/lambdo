@@ -47,7 +47,7 @@ impl TryInto<Configuration> for VMOptionsWrapper {
                     e
                 ))
             })?);
-            drive.drive_id = Some(d.image.id);
+            drive.drive_id = Some(keep_only_alphanumerics(&d.image.id));
             drive.is_read_only = d.is_readonly;
             drive.is_root_device = d.is_root_device;
 
@@ -285,4 +285,10 @@ pub async fn cleanup_network(state: &mut LambdoState, vm: &mut VMState) -> Resul
     })?;
 
     Ok(())
+}
+
+fn keep_only_alphanumerics(s: &str) -> String {
+    s.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect()
 }
